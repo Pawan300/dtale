@@ -21,6 +21,7 @@ from flask.testing import FlaskClient
 import requests
 from flask_compress import Compress
 from six import PY3
+from six.moves.configparser import ConfigParser
 
 import dtale.global_state as global_state
 from dtale import dtale
@@ -50,6 +51,7 @@ USE_COLAB = False
 JUPYTER_SERVER_PROXY = False
 ACTIVE_HOST = None
 ACTIVE_PORT = None
+LOADED_CONFIG = None
 
 SHORT_LIFE_PATHS = ["dist", "dash"]
 SHORT_LIFE_TIMEOUT = 60
@@ -542,6 +544,8 @@ def find_free_port():
 
 
 def build_startup_url_and_app_root(app_root=None):
+    global ACTIVE_HOST, ACTIVE_PORT, JUPYTER_SERVER_PROXY, USE_COLAB
+
     if USE_COLAB:
         colab_host = use_colab(ACTIVE_PORT)
         if colab_host:
@@ -571,28 +575,72 @@ def use_colab(port):
         return None
 
 
-def show(
-    data=None,
-    host=None,
-    port=None,
-    name=None,
-    debug=False,
-    subprocess=True,
-    data_loader=None,
-    reaper_on=True,
-    open_browser=False,
-    notebook=False,
-    force=False,
-    context_vars=None,
-    ignore_duplicate=False,
-    app_root=None,
-    allow_cell_edits=True,
-    inplace=False,
-    drop_index=False,
-    hide_shutdown=False,
-    github_fork=False,
-    **kwargs
-):
+def build_show_options(options):
+
+    defaults = dict(
+        host=None,
+        port=None,
+        debug=False,
+        subprocess=True,
+        reaper_on=True,
+        open_browser=False,
+        notebook=False,
+        force=False,
+        ignore_duplicate=False,
+        app_root=None,
+        allow_cell_edits=True,
+        inplace=False,
+        drop_index=False,
+        hide_shutdown=False,
+        github_fork=False,
+    )
+    config_options = {}
+    config = get_config()
+    if config and config.has_section("show"):
+        config_options["host"] = get_config_val(config, defaults, "host")
+        config_options["port"] = get_config_val(config, defaults, "port")
+        config_options["debug"] = get_config_val(
+            config, defaults, "debug", "getboolean"
+        )
+        config_options["subprocess"] = get_config_val(
+            config, defaults, "subprocess", "getboolean"
+        )
+        config_options["reaper_on"] = get_config_val(
+            config, defaults, "reaper_on", "getboolean"
+        )
+        config_options["open_browser"] = get_config_val(
+            config, defaults, "open_browser", "getboolean"
+        )
+        config_options["notebook"] = get_config_val(
+            config, defaults, "notebook", "getboolean"
+        )
+        config_options["force"] = get_config_val(
+            config, defaults, "force", "getboolean"
+        )
+        config_options["ignore_duplicate"] = get_config_val(
+            config, defaults, "ignore_duplicate", "getboolean"
+        )
+        config_options["app_root"] = get_config_val(config, defaults, "app_root")
+        config_options["allow_cell_edits"] = get_config_val(
+            config, defaults, "allow_cell_edits", "getboolean"
+        )
+        config_options["inplace"] = get_config_val(
+            config, defaults, "inplace", "getboolean"
+        )
+        config_options["drop_index"] = get_config_val(
+            config, defaults, "drop_index", "getboolean"
+        )
+        config_options["hide_shutdown"] = get_config_val(
+            config, defaults, "hide_shutdown", "getboolean"
+        )
+        config_options["github_fork"] = get_config_val(
+            config, defaults, "github_fork", "getboolean"
+        )
+
+    return dict_merge(defaults, config_options, options)
+
+
+def show(data=None, data_loader=None, name=None, context_vars=None, **options):
     """
     Entry point for kicking off D-Tale :class:`flask:flask.Flask` process from python process
 
@@ -654,11 +702,12 @@ def show(
 
         ..link displayed in logging can be copied and pasted into any browser
     """
-    global ACTIVE_HOST, ACTIVE_PORT, USE_NGROK, USE_COLAB, JUPYTER_SERVER_PROXY
+    global ACTIVE_HOST, ACTIVE_PORT, USE_NGROK
 
     try:
+        final_options = build_show_options(options)
         logfile, log_level, verbose = map(
-            kwargs.get, ["logfile", "log_level", "verbose"]
+            final_options.get, ["logfile", "log_level", "verbose"]
         )
         setup_logging(logfile, log_level or "info", verbose)
 
@@ -673,28 +722,32 @@ def show(
             ACTIVE_HOST = _run_ngrok()
             ACTIVE_PORT = None
         else:
-            initialize_process_props(host, port, force)
+            initialize_process_props(
+                final_options["host"], final_options["port"], final_options["force"]
+            )
 
         app_url = build_url(ACTIVE_PORT, ACTIVE_HOST)
-        startup_url, final_app_root = build_startup_url_and_app_root(app_root)
+        startup_url, final_app_root = build_startup_url_and_app_root(
+            final_options["app_root"]
+        )
         instance = startup(
             startup_url,
             data=data,
             data_loader=data_loader,
             name=name,
             context_vars=context_vars,
-            ignore_duplicate=ignore_duplicate,
-            allow_cell_edits=allow_cell_edits,
-            inplace=inplace,
-            drop_index=drop_index,
-            hide_shutdown=hide_shutdown,
-            github_fork=github_fork,
+            ignore_duplicate=final_options["ignore_duplicate"],
+            allow_cell_edits=final_options["allow_cell_edits"],
+            inplace=final_options["inplace"],
+            drop_index=final_options["drop_index"],
+            hide_shutdown=final_options["hide_shutdown"],
+            github_fork=final_options["github_fork"],
         )
         is_active = not running_with_flask_debug() and is_up(app_url)
         if is_active:
 
             def _start():
-                if open_browser:
+                if final_options["open_browser"]:
                     instance.open_browser()
 
         else:
@@ -706,17 +759,17 @@ def show(
             def _start():
                 app = build_app(
                     app_url,
-                    reaper_on=reaper_on,
+                    reaper_on=final_options["reaper_on"],
                     host=ACTIVE_HOST,
                     app_root=final_app_root,
                 )
-                if debug and not USE_NGROK:
+                if final_options["debug"] and not USE_NGROK:
                     app.jinja_env.auto_reload = True
                     app.config["TEMPLATES_AUTO_RELOAD"] = True
                 else:
                     getLogger("werkzeug").setLevel(LOG_ERROR)
 
-                if open_browser:
+                if final_options["open_browser"]:
                     instance.open_browser()
 
                 # hide banner message in production environments
@@ -728,16 +781,19 @@ def show(
                     app.run(threaded=True)
                 else:
                     app.run(
-                        host="0.0.0.0", port=ACTIVE_PORT, debug=debug, threaded=True
+                        host="0.0.0.0",
+                        port=ACTIVE_PORT,
+                        debug=final_options["debug"],
+                        threaded=True,
                     )
 
-        if subprocess:
+        if final_options["subprocess"]:
             if is_active:
                 _start()
             else:
                 _thread.start_new_thread(_start, ())
 
-            if notebook:
+            if final_options["notebook"]:
                 instance.notebook()
         else:
             logger.info("D-Tale started at: {}".format(app_url))
@@ -883,3 +939,43 @@ def offline_chart(
     )
     global_state.cleanup()
     return output
+
+
+def load_config(path):
+    global LOADED_CONFIG
+
+    LOADED_CONFIG = load_config_state(path)
+
+
+def load_config_state(path):
+    if not path:
+        return
+    # load .ini file with properties specific to D-Tale
+    config = ConfigParser()
+    return config.read(path)
+
+
+def get_config():
+    global LOADED_CONFIG
+    if LOADED_CONFIG:
+        return LOADED_CONFIG
+    ini_path = os.environ.get("DTALE_CONFIG")
+    if ini_path:
+        return load_config_state(ini_path)
+    return None
+
+
+def get_config_val(config, defaults, prop, getter="get"):
+    if config.has_option("show", prop):
+        return getattr(config, getter)("show", prop)
+    return defaults[prop]
+
+
+def load_globals(config):
+    global JUPYTER_SERVER_PROXY, USE_NGROK, USE_COLAB
+
+    JUPYTER_SERVER_PROXY = get_config_val(
+        config, JUPYTER_SERVER_PROXY, "JUPYTER_SERVER_PROXY", "getboolean"
+    )
+    USE_NGROK = get_config_val(config, USE_NGROK, "USE_NGROK", "getboolean")
+    USE_NGROK = get_config_val(config, USE_NGROK, "USE_NGROK", "getboolean")

@@ -900,7 +900,7 @@ def base_render_template(template, data_id, **kwargs):
         allow_cell_edits=global_state.load_flag(data_id, "allow_cell_edits", True),
         hide_shutdown=global_state.load_flag(data_id, "hide_shutdown", False),
         github_fork=global_state.load_flag(data_id, "github_fork", False),
-        dark_mode=global_state.DARK_MODE["dark_mode"],
+        theme=global_state.THEME["theme"],
         **kwargs
     )
 
@@ -1076,11 +1076,11 @@ def update_settings(data_id):
     return jsonify(dict(success=True))
 
 
-@dtale.route("/update-display")
+@dtale.route("/update-theme")
 @exception_decorator
-def update_display():
-    dark_mode = get_bool_arg(request, "darkMode")
-    global_state.set_dark_mode(dark_mode)
+def update_theme():
+    theme = get_str_arg(request, "theme")
+    global_state.set_theme(theme)
     return jsonify(dict(success=True))
 
 

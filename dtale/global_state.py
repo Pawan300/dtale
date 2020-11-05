@@ -15,7 +15,7 @@ SETTINGS = {}
 METADATA = {}
 CONTEXT_VARIABLES = {}
 HISTORY = {}
-DARK_MODE = {"dark_mode": False}
+THEME = {"theme": "light"}
 
 
 def drop_punctuation(val):
@@ -154,10 +154,10 @@ def set_history(data_id, val):
     HISTORY[data_id] = val
 
 
-def set_dark_mode(dark_mode):
-    global DARK_MODE
+def set_theme(theme):
+    global THEME
 
-    DARK_MODE["dark_mode"] = dark_mode
+    THEME["theme"] = theme
 
 
 def cleanup(data_id=None):
@@ -270,7 +270,7 @@ def use_store(store_class, create_store):
         old_store.clear()
         return new_store
 
-    global DATA, DTYPES, SETTINGS, METADATA, CONTEXT_VARIABLES, HISTORY, DARK_MODE
+    global DATA, DTYPES, SETTINGS, METADATA, CONTEXT_VARIABLES, HISTORY, THEME
 
     DATA = convert(DATA, "DATA")
     DTYPES = convert(DTYPES, "DTYPES")
@@ -278,7 +278,7 @@ def use_store(store_class, create_store):
     METADATA = convert(METADATA, "METADATA")
     CONTEXT_VARIABLES = convert(CONTEXT_VARIABLES, "CONTEXT_VARIABLES")
     HISTORY = convert(HISTORY, "HISTORY")
-    DARK_MODE = convert(DARK_MODE, "DARK_MODE")
+    THEME = convert(THEME, "THEME")
 
 
 def use_default_store():

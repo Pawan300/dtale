@@ -3338,7 +3338,7 @@ def test_build_dtypes_state(test_data):
 
 
 @pytest.mark.unit
-def test_update_display():
+def test_update_theme():
     import dtale.views as views
 
     df, _ = views.format_data(pd.DataFrame([1, 2, 3, 4, 5]))
@@ -3351,10 +3351,10 @@ def test_update_display():
                 )
             )
 
-            display = {"dark_mode": False}
-            stack.enter_context(mock.patch("dtale.global_state.DARK_MODE", display))
+            theme = {"theme": "light"}
+            stack.enter_context(mock.patch("dtale.global_state.THEME", theme))
 
-            c.get("/dtale/update-display", query_string={"darkMode": True})
-            assert display["dark_mode"]
+            c.get("/dtale/update-theme", query_string={"theme": "dark"})
+            assert theme["theme"]
             response = c.get("/dtale/main/{}".format(c.port))
             assert '<body class="dark-mode">' in str(response.data)
